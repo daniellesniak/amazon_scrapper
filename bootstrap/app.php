@@ -81,6 +81,16 @@ $app->singleton(
 // $app->register(App\Providers\AppServiceProvider::class);
 // $app->register(App\Providers\AuthServiceProvider::class);
 // $app->register(App\Providers\EventServiceProvider::class);
+$app->register(\Prettus\Repository\Providers\LumenRepositoryServiceProvider::class);
+
+/*
+|--------------------------------------------------------------------------
+| Register Bindings
+|--------------------------------------------------------------------------
+*/
+
+$app->bind(\App\Repositories\Product\LinkRepository::class, \App\Repositories\Product\LinkRepositoryEloquent::class);
+$app->bind(\App\Repositories\ProductRepository::class, \App\Repositories\ProductRepositoryEloquent::class);
 
 /*
 |--------------------------------------------------------------------------
