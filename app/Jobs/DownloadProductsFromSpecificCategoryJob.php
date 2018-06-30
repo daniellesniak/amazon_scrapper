@@ -7,7 +7,7 @@ use Goutte\Client;
 use Illuminate\Support\Facades\Log;
 use Prettus\Validator\Exceptions\ValidatorException;
 
-class DownloadProductsFromSpecificCategory extends Job
+class DownloadProductsFromSpecificCategoryJob extends Job
 {
     protected $url;
 
