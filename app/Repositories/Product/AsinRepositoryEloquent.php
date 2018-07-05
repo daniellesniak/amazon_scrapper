@@ -4,16 +4,15 @@ namespace App\Repositories\Product;
 
 use Prettus\Repository\Eloquent\BaseRepository;
 use Prettus\Repository\Criteria\RequestCriteria;
-use App\Repositories\Product\LinkRepository;
-use App\Entities\Product\Link;
-use App\Validators\Product\LinkValidator;
+use App\Repositories\Product\AsinRepository;
+use App\Entities\Product\Asin;
 
 /**
  * Class LinkRepositoryEloquent.
  *
  * @package namespace App\Repositories\Product;
  */
-class LinkRepositoryEloquent extends BaseRepository implements LinkRepository
+class AsinRepositoryEloquent extends BaseRepository implements AsinRepository
 {
     /**
      * Specify Model class name
@@ -22,7 +21,7 @@ class LinkRepositoryEloquent extends BaseRepository implements LinkRepository
      */
     public function model()
     {
-        return Link::class;
+        return Asin::class;
     }
 
     
@@ -33,10 +32,5 @@ class LinkRepositoryEloquent extends BaseRepository implements LinkRepository
     public function boot()
     {
         $this->pushCriteria(app(RequestCriteria::class));
-    }
-
-    public function validator()
-    {
-        return LinkValidator::class;
     }
 }

@@ -89,7 +89,7 @@ $app->register(\Prettus\Repository\Providers\LumenRepositoryServiceProvider::cla
 |--------------------------------------------------------------------------
 */
 
-$app->bind(\App\Repositories\Product\LinkRepository::class, \App\Repositories\Product\LinkRepositoryEloquent::class);
+$app->bind(\App\Repositories\Product\AsinRepository::class, \App\Repositories\Product\AsinRepositoryEloquent::class);
 $app->bind(\App\Repositories\ProductRepository::class, \App\Repositories\ProductRepositoryEloquent::class);
 
 /*

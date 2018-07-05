@@ -1,20 +1,18 @@
 <?php
 
-namespace App\Entities\Product;
+namespace App\Entities;
 
 use Illuminate\Database\Eloquent\Model;
 use Prettus\Repository\Contracts\Transformable;
 use Prettus\Repository\Traits\TransformableTrait;
 
 /**
- * Class Link.
+ * Class Product.
  *
- * @package namespace App\Entities\Product;
+ * @package namespace App\Entities;
  */
-class Link extends Model implements Transformable
+class Product extends Model implements Transformable
 {
-    protected $table = 'products_links';
-
     use TransformableTrait;
 
     /**
@@ -22,6 +20,6 @@ class Link extends Model implements Transformable
      *
      * @var array
      */
-    protected $fillable = ['url', 'is_crawled', 'crawled_at'];
+    protected $fillable = ['title', 'description', 'price', 'details'];
 
 }
