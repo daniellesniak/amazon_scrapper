@@ -4,14 +4,15 @@ namespace App\Jobs;
 
 use App\Repositories\Product\AsinRepository;
 use App\Repositories\ProductRepository;
+use Campo\UserAgent;
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ClientException;
+use GuzzleHttp\Exception\ServerException;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\DomCrawler\Crawler;
 
-class DownloadSingleProductJob extends Job
+class GetSingleProductData extends Job
 {
-    protected $client;
-
     /**
      * Create a new job instance.
      *
@@ -19,7 +20,7 @@ class DownloadSingleProductJob extends Job
      */
     public function __construct()
     {
-        $this->client = new Client();
+        //
     }
 
     /**
@@ -27,18 +28,46 @@ class DownloadSingleProductJob extends Job
      *
      * @param ProductRepository $productRepository
      * @param AsinRepository $asinRepository
-     * @return void
+     * @return bool
      */
     public function handle(ProductRepository $productRepository, AsinRepository $asinRepository)
     {
-        $asinNumbers = $asinRepository->findWhere(['is_crawled' => false])->take(100);
-
-        $client = $this->client;
+        $client = new Client();
+        $asinNumbers = $asinRepository->findWhere(['is_crawled' => false])->take(20);
 
         foreach ($asinNumbers as $asin) {
             dump($asin['asin']);
-            $html = $client->get('https://www.amazon.co.uk/dp/' . $asin['asin'])->getBody()->getContents();
+
+//            try {
+//                $randomUserAgent = UserAgent::random();
+//            } catch (\Exception $e) {
+//                $randomUserAgent = 'Mozilla/5.0 (Windows NT 6.2; rv:20.0) Gecko/20121202 Firefox/20.0';
+//            }
+
+            try {
+                $html = $client->get('https://www.amazon.co.uk/dp/' . $asin['asin'])->getBody()->getContents();
+            } catch (ClientException | ServerException $e) {
+                Log::notice('GuzzleHttp throw an ' . get_class($e), [
+                    'code' => $e->getCode(),
+                    'message' => $e->getMessage(),
+                    'class' => get_class($this),
+                    'line' => __LINE__
+                ]);
+
+                continue;
+            }
+
             $crawler = new Crawler($html);
+
+            if ($crawler->filter('.a-container > .a-row.a-spacing-double-large .a-box > .a-box-inner > h4')->count() > 0) {
+                Log::notice('Amazon Robot Check (Captcha)', [
+                    'class' => get_class($this),
+                    'line' => __LINE__
+                ]);
+
+                dump('captcha');
+                return false;
+            }
 
             if ($crawler->filter('div#dp-container')->count() == 0) {
                 Log::notice('The page is not a valid product page!', [
@@ -48,31 +77,37 @@ class DownloadSingleProductJob extends Job
                     'line' => __LINE__
                 ]);
 
-                $asinRepository->update(['is_crawled' => true], $asin['id']);
+//                $asinRepository->update(['is_crawled' => true], $asin['id']);
+                dump('not a valid product page');
                 continue;
             }
 
             $title = $this->getTitle($crawler);
             dump($title);
+
             $description = $this->getDescription($html);
             $price = $this->getPrice($crawler);
             dump($price);
+            $additionalInfo = $this->getAdditionalInfo($html);
 
             $product = $productRepository->firstOrCreate([
                 'title' => $title,
                 'description' => $description,
-                'price' => (float)$price
+                'price' => (float)$price,
+                'details' => $additionalInfo
             ]);
 
             if ($imageUrl = $crawler->filter('div.imageThumb.thumb > img')->count() > 0) {
                 $imageUrl = $crawler->filter('div.imageThumb.thumb > img')->attr('src');
                 $imageUrl = str_replace('._AC_SX60_CR,0,0,60,60_', '', $imageUrl);
 
-                $this->downloadImage(storage_path('app/'. $product->id .'.jpg'), $imageUrl);
+                $this->downloadImage(storage_path('app/' . $product->id . '.jpg'), $imageUrl);
             }
 
-            $asinRepository->update(['is_crawled => true'], $asin['id']);
+            $asinRepository->update(['is_crawled' => true], $asin['id']);
         }
+
+        return true;
     }
 
     /**
@@ -82,8 +117,9 @@ class DownloadSingleProductJob extends Job
      */
     private function downloadImage($path, $imageUrl): bool
     {
+        $client = new Client();
         $resource = fopen($path, 'w');
-        $this->client->get($imageUrl, ['sink' => $resource]);
+        $client->get($imageUrl, ['sink' => $resource]);
 
         return exif_imagetype($path);
     }
@@ -94,10 +130,9 @@ class DownloadSingleProductJob extends Job
      */
     private function getTitle($crawler): string
     {
-        if ($crawler->filter('span#productTitle')->count() === 0) {
+        if ($crawler->filter('title')->count() === 0) {
             $title = '[no title]';
-        }
-        else {
+        } else {
             $title = str_before($crawler->filter('title')->text(), ':');
         }
 
@@ -133,5 +168,37 @@ class DownloadSingleProductJob extends Job
         $html = str_replace('</noscript>', '', $html);
 
         return $html;
+    }
+
+    /**
+     * @param $html
+     * @return array|bool
+     */
+    private function getAdditionalInfo($html)
+    {
+        $html = str_after($html, '<div id="detail_bullets_id">');
+        $html = str_before($html, '</div>');
+
+        $crawler = new Crawler($html);
+        if ($crawler->filter('.bucket > .content > ul > li')->count() === 0) {
+            return false;
+        }
+
+        $matches = [];
+        $crawler->filter('.bucket > .content > ul > li')->each(function ($node) use (&$matches) {
+            $matches[] = explode(':', $node->text());
+        });
+
+        $additionalInfo = [];
+        foreach ($matches as $match) {
+            // indexes: [0] - key eg. Publisher, [1] - value eg. Cambridge University Press
+            if (count($match) > 2 || str_contains($match[1], "\n")) {
+                continue;
+            }
+
+            $additionalInfo[str_slug($match[0], '_')] = ltrim($match[1]);
+        }
+
+        return json_encode($additionalInfo);
     }
 }

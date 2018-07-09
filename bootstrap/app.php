@@ -25,7 +25,7 @@ $app = new Laravel\Lumen\Application(
 
 // $app->withFacades();
 
-// $app->withEloquent();
+$app->withEloquent();
 
 /*
 |--------------------------------------------------------------------------
@@ -60,7 +60,7 @@ $app->singleton(
 */
 
 // $app->middleware([
-//    App\Http\Middleware\ExampleMiddleware::class
+//    \App\Http\Middleware\ExampleMiddleware::class,
 // ]);
 
 // $app->routeMiddleware([
@@ -91,6 +91,7 @@ $app->register(\Prettus\Repository\Providers\LumenRepositoryServiceProvider::cla
 
 $app->bind(\App\Repositories\Product\AsinRepository::class, \App\Repositories\Product\AsinRepositoryEloquent::class);
 $app->bind(\App\Repositories\ProductRepository::class, \App\Repositories\ProductRepositoryEloquent::class);
+$app->bind(\App\Repositories\Category\LinkRepository::class, \App\Repositories\Category\LinkRepositoryEloquent::class);
 
 /*
 |--------------------------------------------------------------------------

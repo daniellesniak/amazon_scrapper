@@ -2,111 +2,101 @@
 
 namespace App\Jobs;
 
+use App\Repositories\Category\LinkRepository;
 use App\Repositories\Product\AsinRepository;
-use Goutte\Client;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ClientException;
 use Illuminate\Support\Facades\Log;
-use Prettus\Validator\Exceptions\ValidatorException;
+use Symfony\Component\DomCrawler\Crawler;
 
 class GetAsinNumbersFromSpecificCategory extends Job
 {
-    protected $url;
-    protected $client;
-
     /**
      * Create a new job instance.
-     *
      */
     public function __construct()
     {
-        // set Books Category URL
-        $this->url = 'https://www.amazon.co.uk/s/ref=sr_pg_1?rh=n%3A266239%2Cp_n_shipping_option-bin%3A2023186031%2Cp_n_availability%3A428631031&bbn=266239&ie=UTF8&qid=1530721506&lo=stripbooks';
-        $this->client = new Client();
+        //
     }
 
     /**
      * Execute the job.
      *
-     * @param AsinRepository $linkRepository
+     * @param LinkRepository $linkRepository
+     * @param AsinRepository $asinRepository
+     * @param Client $client
      * @return int
      */
-    public function handle(AsinRepository $linkRepository): int
+    public function handle(LinkRepository $linkRepository, AsinRepository $asinRepository, Client $client): int
     {
-        $startUrl = $this->url;
-        $client = $this->client;
+        $link = $linkRepository->findWhere(['completed' => false])->first();
+        $url = $this->generateUrl($link);
 
-        $pages = $this->checkPageFile();
+        dump('Page: ' . $link['current_page']);
 
-        dump('Page: ' . $pages['current'] . '/' . $pages['last']);
+        try {
+            $subCategoryHtml = $client->get($url)->getBody()->getContents();
+        } catch (ClientException $e) {
+            Log::alert('GuzzleHttp throw an Exception', [
+                'status_code' => $e->getCode(),
+                'message' => $e->getMessage(),
+                'class' => get_class($this),
+                'line' => $e->getLine()
+            ]);
 
-        $startUrl .= '&page=' . $pages['current'];
-        $crawler = $client->request('GET', $startUrl);
+            return false;
+        }
+
+        $crawler = new Crawler($subCategoryHtml);
+
+        if ($this->checkIfNoResults($crawler)) {
+            // if there are no results it means the page counter gone to far - check as completed
+            $linkRepository->update([
+                'completed' => true
+            ], $link['id']);
+        }
 
         $counter = 1;
-        $crawler->filter('div.a-column.a-span12.a-text-center.s-position-relative > a')->each(function ($node) use ($linkRepository, &$counter) {
-            preg_match('/\d{10}/', $node->attr('href'), $asin);
+        $crawler->filter('div.a-column.a-span12.a-text-center.s-position-relative > a')->each(function ($node) use ($asinRepository, &$counter) {
+            preg_match('/\d{10}/', $node->attr('href'), $asin); // extract asin number from href
 
             $asin = reset($asin);
             dump('Product ASIN: ' . $asin);
 
-            $linkRepository->firstOrCreate([
-                'asin' => !empty($asin) ? $asin : null
+            $asinRepository->firstOrCreate([
+                'asin' => $asin
             ]);
 
-            $counter += 1;
+            $counter++;
         });
 
-        dump('Total: ' . $counter);
-
-        $this->incrementPageFile();
+        $linkRepository->incrementCurrentPage($link['id']);
+        dump('Total items: ' . $counter);
 
         return true;
     }
 
     /**
-     * @param $crawler
-     * @return array
+     * @param $link
+     * @return mixed|string
      */
-    private function checkPageFile(): array
+    private function generateUrl($link)
     {
-        if (!file_exists(storage_path('page.txt'))) {
-            $crawler = $this->client->request('GET', $this->url);
-            $allPages = $crawler->filter('.pagnDisabled')->first()->text();
-            $pageFile = fopen(storage_path('page.txt'), 'w');
-            fwrite($pageFile, '1/' . $allPages);
-            fclose($pageFile);
+        $url = 'https://www.amazon.co.uk' . $link['url'];
+        $url = str_replace('&page=1', '&page=' . $link['current_page'], $url);
+        $url .= '&lo=stripbooks';
 
-            $this->checkPageFile();
-        }
-
-        $pageFile = fopen(storage_path('page.txt'), 'r');
-        $pages = fread($pageFile, filesize(storage_path('page.txt')));
-        fclose($pageFile);
-
-        $pages = explode('/', $pages);
-
-        return [
-            'current' => $pages[0],
-            'last' => $pages[1]
-        ];
+        return $url;
     }
 
-    private function incrementPageFile()
+    /**
+     * No results mean the page counter gone too far.
+     *
+     * @param $crawler
+     * @return bool
+     */
+    private function checkIfNoResults($crawler)
     {
-        $file = fopen(storage_path('page.txt'), 'r');
-        $pages = fread($file, filesize(storage_path('page.txt')));
-        ftruncate($file, filesize(storage_path('page.txt')));
-        fclose($file);
-
-        $pages = trim($pages);
-        $pages = explode('/', $pages);
-
-        $currentPage = $pages[0] + 1;
-        $lastPage = $pages[1];
-
-        $file = fopen(storage_path('page.txt'), 'w');
-        fwrite($file, $currentPage . '/' . $lastPage);
-        fclose($file);
-
-        return true;
+        return $crawler->filter('#noResultsTitle')->count() > 0;
     }
 }
