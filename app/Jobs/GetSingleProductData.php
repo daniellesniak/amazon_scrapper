@@ -94,7 +94,7 @@ class GetSingleProductData extends Job
                 'title' => $title,
                 'description' => $description,
                 'price' => (float)$price,
-                'details' => $additionalInfo
+                'details' => $additionalInfo != false ? $additionalInfo : null
             ]);
 
             if ($imageUrl = $crawler->filter('div.imageThumb.thumb > img')->count() > 0) {
@@ -133,7 +133,7 @@ class GetSingleProductData extends Job
         if ($crawler->filter('title')->count() === 0) {
             $title = '[no title]';
         } else {
-            $title = str_before($crawler->filter('title')->text(), ':');
+            $title = str_before($crawler->filter('title')->text(), ': Amazon');
         }
 
         return $title;
@@ -167,6 +167,11 @@ class GetSingleProductData extends Job
         $html = str_after($html, '<noscript>');
         $html = str_replace('</noscript>', '', $html);
 
+        if (count($html) > 20000) {
+            // if > 20000 it means there is no description (and all the html is returned)
+            $html = null;
+        }
+
         return $html;
     }
 
@@ -192,11 +197,15 @@ class GetSingleProductData extends Job
         $additionalInfo = [];
         foreach ($matches as $match) {
             // indexes: [0] - key eg. Publisher, [1] - value eg. Cambridge University Press
-            if (count($match) > 2 || str_contains($match[1], "\n")) {
+            if (count($match) > 2 || !isset($match[1]) || str_contains($match[1], PHP_EOL)) {
                 continue;
             }
 
             $additionalInfo[str_slug($match[0], '_')] = ltrim($match[1]);
+        }
+
+        if (count($additionalInfo) === 0) {
+            return false;
         }
 
         return json_encode($additionalInfo);
