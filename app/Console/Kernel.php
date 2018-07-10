@@ -34,7 +34,7 @@ class Kernel extends ConsoleKernel
             } else {
                 dispatch(new GetAsinNumbersFromSpecificCategory);
             }
-        })->everyMinute();
+        })->everyFiveMinutes();
 
         $schedule->call(function () {
             file_put_contents(storage_path('logs/lumen.log'),'');
