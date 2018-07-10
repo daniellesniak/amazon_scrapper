@@ -8,8 +8,8 @@
 </head>
 
 <body>
-<div class="container pt-4">
-    <div class="row">
+<div class="container mt-4">
+    <div class="row mt-4">
         <div class="col-12">
             @if (\App\Helpers\Session::getInstance()->has('message'))
                 <div class="alert alert-{{ \App\Helpers\Session::getInstance()->get('message')['type'] }}" role="alert">
@@ -23,7 +23,7 @@
         </div>
     </div>
 
-    <div class="row">
+    <div class="row mt-4">
         <div class="col-12">
             <h1>Pobierz linki podkategorii</h1>
             <form action="/getSubcategoriesLinks" method="POST">
@@ -33,6 +33,15 @@
                 </div>
                 <input type="submit" class="btn btn-primary">
             </form>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-6 float-left">
+            <h6>Pobrane numery ASIN: {{ $asinCount }}</h6>
+        </div>
+        <div class="col-6">
+            <h6 class="float-right">Pobrane produkty: {{ $productsCount }}</h6>
         </div>
     </div>
 

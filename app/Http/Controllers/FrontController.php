@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Entities\Product;
+use App\Entities\Product\Asin;
 use App\Helpers\Session;
 use App\Repositories\Category\LinkRepository;
 use App\Repositories\ProductRepository;
@@ -18,7 +20,12 @@ class FrontController extends Controller
         $latestProducts = $productRepository->orderBy('created_at', 'DESC')->get()->take(5);
         $logs = file_get_contents(storage_path('logs/' . 'lumen.log'));
 
-        return view('index', ['latestProducts' => $latestProducts, 'logs' => $logs]);
+        return view('index', [
+            'latestProducts' => $latestProducts,
+            'logs' => $logs,
+            'asinCount' => Asin::count(),
+            'productsCount' => Product::count()
+        ]);
     }
     /**
      * Create a new controller instance.
