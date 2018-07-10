@@ -43,14 +43,18 @@ class GetSingleProductData extends Job
 
             dump($asin['asin']);
 
-//            try {
-//                $randomUserAgent = UserAgent::random();
-//            } catch (\Exception $e) {
-//                $randomUserAgent = 'Mozilla/5.0 (Windows NT 6.2; rv:20.0) Gecko/20121202 Firefox/20.0';
-//            }
+            try {
+                $randomUserAgent = UserAgent::random();
+            } catch (\Exception $e) {
+                $randomUserAgent = 'Mozilla/5.0 (Windows NT 6.2; rv:20.0) Gecko/20121202 Firefox/20.0';
+            }
 
             try {
-                $html = $client->get('https://www.amazon.co.uk/dp/' . $asin['asin'])->getBody()->getContents();
+                $html = $client->get('https://www.amazon.co.uk/dp/' . $asin['asin'], [
+                    'headers' => [
+                        'User-Agent' => $randomUserAgent
+                    ]
+                ])->getBody()->getContents();
             } catch (ClientException | ServerException $e) {
                 Log::notice('GuzzleHttp throw an ' . get_class($e), [
                     'code' => $e->getCode(),
@@ -70,7 +74,6 @@ class GetSingleProductData extends Job
                     'line' => __LINE__
                 ]);
 
-                dump('captcha');
                 return false;
             }
 
@@ -82,8 +85,6 @@ class GetSingleProductData extends Job
                     'line' => __LINE__
                 ]);
 
-//                $asinRepository->update(['is_crawled' => true], $asin['id']);
-                dump('not a valid product page');
                 continue;
             }
 
