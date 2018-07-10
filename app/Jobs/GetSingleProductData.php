@@ -163,9 +163,9 @@ class GetSingleProductData extends Job
      * Crawler can't see these divs so we need to pull out description in this ugly way.
      *
      * @param $html
-     * @return string
+     * @return string|null
      */
-    public function getDescription($html): string
+    public function getDescription($html)
     {
         $html = str_after($html, '<div id="bookDescription_feature_div" class="feature" data-feature-name="bookDescription">');
         $html = str_before($html, '<div id="outer_postBodyPS" style="overflow: hidden; z-index: 1; height: 0px; display: block;">');
