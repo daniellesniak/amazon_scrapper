@@ -36,6 +36,11 @@ class GetSingleProductData extends Job
         $asinNumbers = $asinRepository->findWhere(['is_crawled' => false])->take(20);
 
         foreach ($asinNumbers as $asin) {
+            if ($asin['asin'] == 0) {
+                $asinRepository->update(['is_crawled' => true], $asin->id);
+                continue;
+            }
+
             dump($asin['asin']);
 
 //            try {
@@ -167,7 +172,7 @@ class GetSingleProductData extends Job
         $html = str_after($html, '<noscript>');
         $html = str_replace('</noscript>', '', $html);
 
-        if (count($html) > 20000) {
+        if (strlen($html) > 20000) {
             // if > 20000 it means there is no description (and all the html is returned)
             $html = null;
         }
