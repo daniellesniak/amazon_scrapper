@@ -32,6 +32,18 @@ class GetAsinNumbersFromSpecificCategory extends Job
         $link = $linkRepository->findWhere(['completed' => false])->first();
         $url = $this->generateUrl($link);
 
+        if (filter_var($url, FILTER_VALIDATE_URL) === false) {
+            Log::alert('URL is not valid, skipping', [
+                'url' => $url,
+                'class' => get_class($this),
+                'line' => __LINE__
+            ]);
+
+            $linkRepository->update(['completed' => true], $link['id']);
+
+            return false;
+        }
+
         dump('Page: ' . $link['current_page']);
 
         try {
