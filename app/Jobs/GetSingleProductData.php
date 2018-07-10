@@ -165,7 +165,7 @@ class GetSingleProductData extends Job
      * @param $html
      * @return string|null
      */
-    public function getDescription($html)
+    public function getDescription($html): ?string
     {
         $html = str_after($html, '<div id="bookDescription_feature_div" class="feature" data-feature-name="bookDescription">');
         $html = str_before($html, '<div id="outer_postBodyPS" style="overflow: hidden; z-index: 1; height: 0px; display: block;">');
