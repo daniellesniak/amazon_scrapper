@@ -2,6 +2,8 @@
 
 namespace App\Console;
 
+use App\Entities\Product;
+use App\Entities\Product\Asin;
 use App\Jobs\GetAsinNumbersFromSpecificCategory;
 use App\Jobs\GetSingleProductData;
 use Illuminate\Console\Scheduling\Schedule;
@@ -27,8 +29,11 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         $schedule->call(function () {
-            dispatch(new GetSingleProductData);
-            dispatch(new GetAsinNumbersFromSpecificCategory);
+            if (Asin::count() > Product::count()) {
+                dispatch(new GetSingleProductData);
+            } else {
+                dispatch(new GetAsinNumbersFromSpecificCategory);
+            }
         })->everyMinute();
 
         $schedule->call(function () {
