@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Helpers\ProxyManager;
 use App\Repositories\Product\AsinRepository;
 use App\Repositories\ProductRepository;
 use Campo\UserAgent;
@@ -32,85 +33,91 @@ class GetSingleProductData extends Job
      */
     public function handle(ProductRepository $productRepository, AsinRepository $asinRepository)
     {
-        $client = new Client();
-        $asinNumbers = $asinRepository->findWhere(['is_crawled' => false])->take(20);
+        $proxyManager = new ProxyManager(storage_path('proxy_list.txt'));
+        $proxies = $proxyManager->getValidatedProxies();
 
-        foreach ($asinNumbers as $asin) {
-            if ($asin['asin'] == 0) {
-                $asinRepository->update(['is_crawled' => true], $asin->id);
-                continue;
-            }
+        for ($i = 0; $i < count($proxies); $i++) {
+            $client = new Client();
+            $asinNumbers = $asinRepository->findWhere(['is_crawled' => false])->take(20);
 
-            dump($asin['asin']);
+            foreach ($asinNumbers as $asin) {
+                if ($asin['asin'] == 0) {
+                    $asinRepository->update(['is_crawled' => true], $asin->id);
+                    continue;
+                }
 
-            try {
-                $randomUserAgent = UserAgent::random();
-            } catch (\Exception $e) {
-                $randomUserAgent = 'Mozilla/5.0 (Windows NT 6.2; rv:20.0) Gecko/20121202 Firefox/20.0';
-            }
+                dump($asin['asin']);
 
-            try {
-                $html = $client->get('https://www.amazon.co.uk/dp/' . $asin['asin'], [
-                    'headers' => [
-                        'User-Agent' => $randomUserAgent
-                    ]
-                ])->getBody()->getContents();
-            } catch (ClientException | ServerException $e) {
-                Log::notice('GuzzleHttp throw an ' . get_class($e), [
-                    'code' => $e->getCode(),
-                    'message' => $e->getMessage(),
-                    'class' => get_class($this),
-                    'line' => __LINE__
+                try {
+                    $randomUserAgent = UserAgent::random();
+                } catch (\Exception $e) {
+                    $randomUserAgent = 'Mozilla/5.0 (Windows NT 6.2; rv:20.0) Gecko/20121202 Firefox/20.0';
+                }
+
+                try {
+                    $html = $client->get('https://www.amazon.co.uk/dp/' . $asin['asin'], [
+                        'proxy' => $proxies[$i],
+                        'headers' => [
+                            'User-Agent' => $randomUserAgent,
+                        ]
+                    ])->getBody()->getContents();
+                } catch (ClientException | ServerException $e) {
+                    Log::notice('GuzzleHttp throw an ' . get_class($e), [
+                        'code' => $e->getCode(),
+                        'message' => $e->getMessage(),
+                        'class' => get_class($this),
+                        'line' => __LINE__
+                    ]);
+
+                    continue;
+                }
+
+                $crawler = new Crawler($html);
+
+                if ($crawler->filter('.a-container > .a-row.a-spacing-double-large .a-box > .a-box-inner > h4')->count() > 0) {
+                    Log::notice('Amazon Robot Check (Captcha)', [
+                        'class' => get_class($this),
+                        'line' => __LINE__
+                    ]);
+
+                    return false;
+                }
+
+                if ($crawler->filter('div#dp-container')->count() == 0) {
+                    Log::notice('The page is not a valid product page!', [
+                        'asin' => $asin['asin'],
+                        'full_url' => 'https://www.amazon.co.uk/dp/' . $asin['asin'],
+                        'class' => get_class($this),
+                        'line' => __LINE__
+                    ]);
+
+                    continue;
+                }
+
+                $title = $this->getTitle($crawler);
+                dump($title);
+
+                $description = $this->getDescription($html);
+                $price = $this->getPrice($crawler);
+                dump($price);
+                $additionalInfo = $this->getAdditionalInfo($html);
+
+                $product = $productRepository->firstOrCreate([
+                    'title' => $title,
+                    'description' => $description,
+                    'price' => (float)$price,
+                    'details' => $additionalInfo != false ? $additionalInfo : null
                 ]);
 
-                continue;
+                if ($imageUrl = $crawler->filter('div.imageThumb.thumb > img')->count() > 0) {
+                    $imageUrl = $crawler->filter('div.imageThumb.thumb > img')->attr('src');
+                    $imageUrl = str_replace('._AC_SX60_CR,0,0,60,60_', '', $imageUrl);
+
+                    $this->downloadImage(storage_path('app/' . $product->id . '.jpg'), $imageUrl);
+                }
+
+                $asinRepository->update(['is_crawled' => true], $asin['id']);
             }
-
-            $crawler = new Crawler($html);
-
-            if ($crawler->filter('.a-container > .a-row.a-spacing-double-large .a-box > .a-box-inner > h4')->count() > 0) {
-                Log::notice('Amazon Robot Check (Captcha)', [
-                    'class' => get_class($this),
-                    'line' => __LINE__
-                ]);
-
-                return false;
-            }
-
-            if ($crawler->filter('div#dp-container')->count() == 0) {
-                Log::notice('The page is not a valid product page!', [
-                    'asin' => $asin['asin'],
-                    'full_url' => 'https://www.amazon.co.uk/dp/' . $asin['asin'],
-                    'class' => get_class($this),
-                    'line' => __LINE__
-                ]);
-
-                continue;
-            }
-
-            $title = $this->getTitle($crawler);
-            dump($title);
-
-            $description = $this->getDescription($html);
-            $price = $this->getPrice($crawler);
-            dump($price);
-            $additionalInfo = $this->getAdditionalInfo($html);
-
-            $product = $productRepository->firstOrCreate([
-                'title' => $title,
-                'description' => $description,
-                'price' => (float)$price,
-                'details' => $additionalInfo != false ? $additionalInfo : null
-            ]);
-
-            if ($imageUrl = $crawler->filter('div.imageThumb.thumb > img')->count() > 0) {
-                $imageUrl = $crawler->filter('div.imageThumb.thumb > img')->attr('src');
-                $imageUrl = str_replace('._AC_SX60_CR,0,0,60,60_', '', $imageUrl);
-
-                $this->downloadImage(storage_path('app/' . $product->id . '.jpg'), $imageUrl);
-            }
-
-            $asinRepository->update(['is_crawled' => true], $asin['id']);
         }
 
         return true;

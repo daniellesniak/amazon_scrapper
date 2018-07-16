@@ -10,6 +10,7 @@ use App\Repositories\ProductRepository;
 use GuzzleHttp\Client;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use League\Csv\Writer;
 use Symfony\Component\DomCrawler\Crawler;
 
 class FrontController extends Controller
@@ -76,5 +77,25 @@ class FrontController extends Controller
         $html = str_replace('<div aria-live="polite" class="a-row a-expander-container a-expander-extend-container">', '', $html);
 
         return $html;
+    }
+
+    public function exportToCsv(ProductRepository $productRepository)
+    {
+        $allProducts = $productRepository->all();
+        $data = [];
+
+        foreach ($allProducts as $product) {
+            $details = json_decode($product->details);
+
+            $data[] = [
+                $product->title ?? '', $product->price ?? '', strip_tags($product->description) ?? '', $details->isbn_10 ?? '', $details->language ?? '', $details->paperback ?? '', $details->publisher ?? ''
+            ];
+        }
+
+        $writer = Writer::createFromPath(storage_path('records.csv'), 'w+');
+        $writer->setDelimiter('^');
+        $writer->insertAll($data);
+
+        return response('done.');
     }
 }

@@ -17,3 +17,4 @@ $router->get('/', [
 ]);
 
 $router->post('/getSubcategoriesLinks', 'FrontController@getSubcategoriesLinks');
+$router->post('/exportToCsv', 'FrontController@exportToCsv');

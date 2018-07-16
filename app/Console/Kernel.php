@@ -6,6 +6,7 @@ use App\Entities\Product;
 use App\Entities\Product\Asin;
 use App\Jobs\GetAsinNumbersFromSpecificCategory;
 use App\Jobs\GetSingleProductData;
+use App\Jobs\SaveImagesAsIsbn;
 use Illuminate\Console\Scheduling\Schedule;
 use Laravel\Lumen\Console\Kernel as ConsoleKernel;
 
@@ -34,6 +35,8 @@ class Kernel extends ConsoleKernel
             } else {
                 dispatch(new GetAsinNumbersFromSpecificCategory);
             }
+
+            dispatch(new SaveImagesAsIsbn);
         })->everyFiveMinutes();
 
         $schedule->call(function () {
